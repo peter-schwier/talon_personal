@@ -1,0 +1,48 @@
+import typing
+import pathlib
+import json
+import os
+
+from talon import Context, Module, app, clip, cron, imgui, actions, ui, fs, registry, settings
+
+def configuration_get_file(
+    name: str
+) -> pathlib.Path:
+    """Format the pathlib.Path for the given configuration file."""
+    path = pathlib.Path(actions.path.talon_user())
+    path = path / "configuration"
+    if not path.exists():
+        path.mkdir()
+    path = path / f"{name}.json"
+    return path
+
+def configuration_handler(
+    name: str,
+    on_change: typing.Callable[[dict], None],
+    default_value: dict
+) -> None:
+    """
+    Create an intial configuration file at %TALON_HOME%/configuration/name.json.
+    Watch for changes of that file, and call on_change with the parsed value from the file when it changes.
+    Also, call on_change during initial load.
+    """
+    path: pathlib.Path = configuration_get_file(name)
+    if not path.exists():
+        json_str = json.dumps(
+            default_value,
+            indent=2,
+            sort_keys=True
+            )
+        path.write_text(json_str)
+
+    def on_fs_watch(name: str, flags):
+        if name != str(path):
+            return
+        
+        json_str = path.read_text()
+        value = json.loads(json_str)
+        on_change(value)
+
+    fs.watch(str(path.parent), on_fs_watch)
+
+    on_change(default_value)
